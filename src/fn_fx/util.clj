@@ -44,6 +44,13 @@
 
 (alter-var-root #'kabob->class memoize)
 
+(defn kabob->fully-qualified
+  "Converts strings like \"scene.input.mouse-event\" to \"scene.input.MouseEvent\""
+  [from]
+  (let [parts (string/split from #"\.")]
+    (string/join "." (conj (mapv kabob->camel (butlast parts))
+                           (kabob->class (last parts))))))
+
 
 (defn camel->kabob [from]
   (let [s (string/split (name from) #"(?=[A-Z])" )]

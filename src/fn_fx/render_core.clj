@@ -287,6 +287,33 @@
       {}
       include)))
 
+(defn- keyword->event-class
+  "Expects keywords like :scene.input.mouse-event/mouse-exited and returns
+  javafx.scene.input.MouseEvent/MOUSE_EXITED"
+  [k]
+  (let [klass    (->> k namespace (str "javafx.") util/kabob->fully-qualified Class/forName)
+        the-name (-> k name str/upper-case (str/replace "-" "_"))]
+    (->> (for [^Field f (.getDeclaredFields klass)
+               :when (Modifier/isPublic (.getModifiers f))
+               :when (Modifier/isStatic (.getModifiers f))
+               :when (= the-name (.getName f))]
+           (.get f nil))
+         first)))
+
+(defn get-add-filter [event-type]
+  (fn [^Window inst template]
+    (let [handler-fn  *handler-fn*
+          event-class (keyword->event-class event-type)]
+      (when-not event-class
+        (throw (ex-info (str "Cannot resolve event class for keyword" event-type)
+                        {:event-type event-type})))
+      (.addEventFilter inst event-class
+                       (reify EventHandler
+                         (^void handle [this ^Event event]
+                          (future
+                            (handler-fn (gather-event-data (.getTarget event) event template))
+                            nil)))))))
+
 (defn get-add-listener [^Class class prop]
   (let [prop-name   (str (util/kabob->camel (name prop)) "Property")
         empty-array (make-array Class 0)
